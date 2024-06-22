@@ -1,9 +1,10 @@
 use std::{
-    io::{BufRead, BufReader},
-    process::{Command, Stdio},
+    io::{BufRead, BufReader}, os::unix::fs::chroot, process::{Command, Stdio}
 };
 
-use nix::sched::{clone, CloneFlags};
+use nix::{
+    libc::{getpid, sethostname}, mount::{mount, MsFlags}, sched::{clone, unshare, CloneFlags}
+};
 
 fn main() {
     let mut stack: Vec<u8> = vec![0; 1024 * 1024];
@@ -14,18 +15,15 @@ fn main() {
         clone(
             cbk,
             &mut stack,
-            CloneFlags::CLONE_NEWCGROUP
-                | CloneFlags::CLONE_NEWIPC
-                | CloneFlags::CLONE_NEWUSER
+            CloneFlags::CLONE_NEWUSER
+                | CloneFlags::CLONE_NEWUTS
                 | CloneFlags::CLONE_NEWPID
-                | CloneFlags::CLONE_NEWNS
                 | CloneFlags::CLONE_VFORK,
             None,
         )
     } {
         Ok(_) => {
             // clean-ups after child happen here!
-            println!("this is parent");
         }
         Err(_) => {
             eprint!("child failed");
@@ -34,6 +32,14 @@ fn main() {
 }
 
 fn child() -> isize {
+    unshare(CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWNS).unwrap();
+    std::env::set_current_dir("ubuntu-fs").unwrap();
+    chroot(".").unwrap();
+    mount(Some("proc"), "proc", Some("proc"), MsFlags::empty(), Some("")).unwrap();
+    unsafe { sethostname("otterner".as_ptr() as *const i8, 8) };
+
+    println!("{}", unsafe { getpid() });
+
     let console = Command::new("/bin/bash")
         .stdin(Stdio::inherit())
         .stdout(Stdio::piped())
