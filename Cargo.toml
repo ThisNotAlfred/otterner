@@ -6,4 +6,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4.5.7", features = ["unstable-doc"] }
 nix = { version = "0.29.0", features = ["fs", "hostname", "aio", "acct", "dir", "ioctl", "kmod", "net", "mount", "mman", "pthread", "ptrace", "resource", "socket", "signal", "user", "sched"] }

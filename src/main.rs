@@ -1,13 +1,29 @@
-use otterner::container::Container;
+use clap::Parser;
+use otterner::{
+    cli::{Cli, Commands},
+    container::Container,
+};
 
 fn main() {
-    let mut container = Container::new(
-        4096,
-        100 * 1024 * 1024,
-        20,
-        "junk/ubuntu-fs".into(),
-        "/bin/bash".to_owned(),
-    );
+    let cli = Cli::parse();
 
-    container.container_creator()
+    match cli.command.unwrap() {
+        Commands::Run {
+            memory_size,
+            stack_size,
+            pid_limit,
+            rootfs,
+            cmd,
+        } => {
+            let mut container = Container::new(
+                stack_size * 1024,
+                memory_size * 1024 * 1204,
+                pid_limit,
+                rootfs,
+                cmd,
+            );
+
+            container.container_creator();
+        }
+    }
 }
