@@ -1,0 +1,9 @@
+cargo-features = ["edition2024"]
+
+[package]
+name = "otterner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nix = { version = "0.29.0", features = ["fs", "hostname", "aio", "acct", "dir", "ioctl", "kmod", "net", "mount", "mman", "pthread", "ptrace", "resource", "socket", "signal", "user", "sched"] }
