@@ -63,29 +63,29 @@ impl Container {
     }
 
     fn container(&self) -> isize {
-        if let Err(_) = unshare(CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID) {
-            eprintln!("couldn't unshare pid and namespaces");
+        if let Err(err) = unshare(CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID) {
+            eprintln!("couldn't unshare pid and namespaces: {err}");
             return -1;
         }
 
-        if let Err(_) = env::set_current_dir(self.path_of_rootfs.as_path()) {
-            eprintln!("couldn't find the designated directory");
+        if let Err(err) = env::set_current_dir(self.path_of_rootfs.as_path()) {
+            eprintln!("couldn't find the designated directory: {err}");
             return -1;
         }
 
-        if let Err(_) = chroot(".") {
-            eprintln!("chroot failed");
+        if let Err(err) = chroot(".") {
+            eprintln!("chroot failed: {err}");
             return -1;
         }
 
-        if let Err(_) = mount(
+        if let Err(err) = mount(
             Some("proc"),
             "proc",
             Some("proc"),
             MsFlags::empty(),
             None::<&str>,
         ) {
-            eprintln!("couln't mount the /proc");
+            eprintln!("couln't mount the /proc: {err}");
             return -1;
         }
 
