@@ -100,7 +100,7 @@ impl Container {
             return -1;
         }
 
-        let command = Command::new(self.command_to_run.to_owned())
+        let command = Command::new(&self.command_to_run)
             .stderr(Stdio::inherit())
             .stdout(Stdio::piped())
             .stdin(Stdio::inherit())
@@ -112,7 +112,7 @@ impl Container {
 
                 reader
                     .lines()
-                    .filter_map(|line| line.ok())
+                    .map_while(|line| line.ok())
                     .for_each(|line| println!("{line}"));
             }
             Err(e) => {
@@ -123,7 +123,7 @@ impl Container {
 
         umount("proc").unwrap();
 
-        return 0;
+        0
     }
 
     fn setup_cgroups(&mut self, pid: usize) -> Result<(), io::Error> {
