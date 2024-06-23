@@ -1,6 +1,6 @@
 use std::{
     env,
-    fs::{create_dir_all, remove_dir_all},
+    fs::{create_dir_all, remove_dir_all, write},
     io::{self, BufRead, BufReader},
     path::PathBuf,
     process::{Command, Stdio},
@@ -10,8 +10,7 @@ use nix::{
     libc::SIGCHLD,
     mount::{mount, umount, MsFlags},
     sched::{clone, unshare, CloneFlags},
-    unistd::{chroot, getppid},
-    Error,
+    unistd::{chroot, getpid},
 };
 
 pub struct Container {
@@ -41,14 +40,15 @@ impl Container {
         }
     }
 
-    pub fn container_creator(&mut self) -> Result<(), Error> {
+    pub fn container_creator(&mut self) -> Result<(), nix::Error> {
+        let mut stack = vec![0; self.stack_size * 1024];
         let container_block = Box::new(|| self.container());
+
         match unsafe {
             clone(
                 container_block,
-                &mut vec![0; self.stack_size * 1024],
+                &mut stack,
                 CloneFlags::CLONE_NEWIPC
-                    | CloneFlags::CLONE_NEWCGROUP
                     | CloneFlags::CLONE_NEWNET
                     | CloneFlags::CLONE_NEWNS
                     | CloneFlags::CLONE_NEWPID
@@ -58,8 +58,8 @@ impl Container {
                 Some(SIGCHLD),
             )
         } {
-            Ok(_) => {
-                self.container_cleaner();
+            Ok(pid) => {
+                self.container_cleaner().unwrap();
                 Ok(())
             }
 
@@ -67,8 +67,8 @@ impl Container {
         }
     }
 
-    fn container(&self) -> isize {
-        if let Err(err) = unshare(CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID) {
+    fn container(&mut self) -> isize {
+        if let Err(err) = unshare(CloneFlags::CLONE_NEWNS) {
             eprintln!("couldn't unshare pid and namespaces: {err}");
             return -1;
         }
@@ -80,6 +80,12 @@ impl Container {
 
         if let Err(err) = chroot(".") {
             eprintln!("chroot failed: {err}");
+            return -1;
+        }
+
+        // TODO: needs event handling
+        if let Err(err) = self.setup_cgroups(getpid().as_raw() as usize) {
+            eprintln!("cgroups failed: {err}");
             return -1;
         }
 
@@ -120,18 +126,29 @@ impl Container {
         return 0;
     }
 
-    fn setup_cgroups(&mut self) -> Result<(), io::Error> {
-        self.path_to_cgroup = format!("/sys/fs/cgroup/otterner_{}", self.get_pid());
+    fn setup_cgroups(&mut self, pid: usize) -> Result<(), io::Error> {
+        self.path_to_cgroup = format!("/sys/fs/cgroup/otterner_{}", pid);
         create_dir_all(&self.path_to_cgroup)?;
+
+        write(
+            self.path_to_cgroup.to_string() + "/cgroup.procs",
+            format!("{}", pid).as_bytes(),
+        )?;
+
+        write(
+            self.path_to_cgroup.to_string() + "/pids.max",
+            format!("{}", self.number_of_processes).as_bytes(),
+        )?;
+
+        write(
+            self.path_to_cgroup.to_string() + "/memory.limit_in_bytes",
+            format!("{}", self.memory_limit).as_bytes(),
+        )?;
 
         Ok(())
     }
 
-    fn get_pid(&self) -> i32 {
-        getppid().as_raw()
-    }
-
-    fn container_cleaner(&self) {
-        remove_dir_all(&self.path_to_cgroup).unwrap();
+    fn container_cleaner(&self) -> Result<(), io::Error> {
+        Ok(())
     }
 }
