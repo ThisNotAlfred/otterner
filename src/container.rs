@@ -1,6 +1,6 @@
 use std::{
     env,
-    fs::{create_dir_all, remove_dir_all, write},
+    fs::{create_dir_all, write},
     io::{self, BufRead, BufReader},
     path::PathBuf,
     process::{Command, Stdio},
@@ -58,7 +58,7 @@ impl Container {
                 Some(SIGCHLD),
             )
         } {
-            Ok(pid) => {
+            Ok(_) => {
                 self.container_cleaner().unwrap();
                 Ok(())
             }
