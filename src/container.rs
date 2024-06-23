@@ -1,6 +1,7 @@
 use std::{
     env,
-    io::{BufRead, BufReader},
+    fs::{create_dir_all, remove_dir_all},
+    io::{self, BufRead, BufReader},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -9,7 +10,8 @@ use nix::{
     libc::SIGCHLD,
     mount::{mount, umount, MsFlags},
     sched::{clone, unshare, CloneFlags},
-    unistd::chroot,
+    unistd::{chroot, getppid},
+    Error,
 };
 
 pub struct Container {
@@ -18,6 +20,7 @@ pub struct Container {
     number_of_processes: usize,
     path_of_rootfs: PathBuf,
     command_to_run: String,
+    path_to_cgroup: String,
 }
 
 impl Container {
@@ -34,17 +37,18 @@ impl Container {
             number_of_processes,
             path_of_rootfs,
             command_to_run,
+            path_to_cgroup: String::new(),
         }
     }
 
-    pub fn container_creator(&mut self) {
+    pub fn container_creator(&mut self) -> Result<(), Error> {
         let container_block = Box::new(|| self.container());
         match unsafe {
             clone(
                 container_block,
                 &mut vec![0; self.stack_size * 1024],
-                CloneFlags::CLONE_NEWCGROUP
-                    | CloneFlags::CLONE_NEWIPC
+                CloneFlags::CLONE_NEWIPC
+                    | CloneFlags::CLONE_NEWCGROUP
                     | CloneFlags::CLONE_NEWNET
                     | CloneFlags::CLONE_NEWNS
                     | CloneFlags::CLONE_NEWPID
@@ -54,11 +58,12 @@ impl Container {
                 Some(SIGCHLD),
             )
         } {
-            Ok(_) => self.container_cleaner(),
-
-            Err(_) => {
-                eprintln!("failed to execute the container");
+            Ok(_) => {
+                self.container_cleaner();
+                Ok(())
             }
+
+            Err(_) => Err(nix::Error::ECANCELED),
         }
     }
 
@@ -115,5 +120,18 @@ impl Container {
         return 0;
     }
 
-    fn container_cleaner(&self) {}
+    fn setup_cgroups(&mut self) -> Result<(), io::Error> {
+        self.path_to_cgroup = format!("/sys/fs/cgroup/otterner_{}", self.get_pid());
+        create_dir_all(&self.path_to_cgroup)?;
+
+        Ok(())
+    }
+
+    fn get_pid(&self) -> i32 {
+        getppid().as_raw()
+    }
+
+    fn container_cleaner(&self) {
+        remove_dir_all(&self.path_to_cgroup).unwrap();
+    }
 }

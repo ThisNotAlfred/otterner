@@ -15,15 +15,14 @@ fn main() {
             rootfs,
             cmd,
         } => {
-            let mut container = Container::new(
+            let _ = Container::new(
                 stack_size * 1024,
                 memory_size * 1024 * 1204,
                 pid_limit,
                 rootfs,
                 cmd,
-            );
-
-            container.container_creator();
+            )
+            .container_creator();
         }
     }
 }
