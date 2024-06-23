@@ -107,8 +107,8 @@ impl Container {
             .spawn();
 
         match command {
-            Ok(o) => {
-                let reader = BufReader::new(o.stdout.unwrap());
+            Ok(output) => {
+                let reader = BufReader::new(output.stdout.unwrap());
 
                 reader
                     .lines()
