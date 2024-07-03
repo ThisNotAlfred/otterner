@@ -96,7 +96,7 @@ impl Container {
             MsFlags::empty(),
             None::<&str>,
         ) {
-            eprintln!("couln't mount the /proc: {err}");
+            eprintln!("couldn't mount the /proc: {err}");
             return -1;
         }
 
